@@ -34,4 +34,7 @@ traub.hoc: this file will construct the standard Traub model\
 traub_fig4.hoc: this file will construct the model used in Fig. 4 which contains only one apical and one basal dendritic compartment with slightly different conductances  that the standard model.\
 traub_currinj.hoc: will generate ascii files in the data subdirectory corresponding to the membrane potential trajectory for current injection in the soma.\
 \
-In addition, steady_state subdirectory contains one m-file, convert_current.m, which will convert the current values from the Traub model (nA in soma) to the Pinsky-Rinzel model (uA/cm^2, in soma) following the prescriptions of the legend of fig. 6 in the Pinsky-Rinzel paper.  }
+In addition, steady_state subdirectory contains one m-file, convert_current.m, which will convert the current values from the Traub model (nA in soma) to the Pinsky-Rinzel model (uA/cm^2, in soma) following the prescriptions of the legend of fig. 6 in the Pinsky-Rinzel paper.  \
+\
+Note: the hoc script traub_currinj.hoc simulates current injection of 0.4 nA into the soma of the Traub model. Using convert_current.m, we find that this is equivalent to injecting 2.0734 uA/cm^2 in the Pinsky-Rinzel model\
+}
