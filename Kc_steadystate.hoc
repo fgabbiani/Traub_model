@@ -1,0 +1,28 @@
+//check if the steady-state values of gKc are initialized correctly
+
+create soma
+access soma
+
+insert gKc
+
+// the tables for the rate constants are from -150 to 50 in 2000 steps or dv = 0.1
+vmin = -20
+vmax = 130
+dv = 0.1
+
+//open a file to save the data
+wopen("steady_state/gKc_ss.txt")
+
+vcurrent = vmin
+for ( ; vcurrent<=vmax; ) {
+    //initialize to current v
+    finitialize(vcurrent)
+
+    //print the gKc conductance variables to file
+    fprint("%g %g %g \n",vcurrent, c_inf_gKc, tau_c_gKc)
+
+    vcurrent = vcurrent + dv
+}
+
+//close the file
+wopen()

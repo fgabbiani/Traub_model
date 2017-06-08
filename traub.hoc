@@ -1,0 +1,363 @@
+/*
+Traub CA3 compartmental model
+
+Note: NEURON should be started using nrnenv.sh to setup required system
+constants before loading the model and evoking nrngui.hoc.
+*/
+
+//setup base path
+strdef basepath
+objref Str
+system("echo $NRNBASE", basepath)
+Str = new StringFunctions()
+strlen = Str.len(basepath)
+Str.left(basepath,strlen-1)
+
+//setup data directory
+strdef datadir 
+// NOTE: the \\ is required to have a single \ in datadir, which in turn is required for 
+// the mkdir string to have the \, which in turn is required for the system command below
+// to work and create the target directory
+datadir = "/Traub_model/data" //need to be where you want to store data 
+
+strdef datapath
+sprint(datapath, "%s%s", basepath, datadir)
+
+objref Str1
+strdef strtmp, datestr, cmd
+
+//setup subdirectory of data dir, identified by current date
+strtmp="date \"+%m%d%Y\" "
+system(strtmp,datestr)
+Str1 = new StringFunctions()
+strlen1 = Str1.len(datestr)
+Str1.left(datestr,strlen1-1) //removes carriage return
+sprint(strtmp,"mkdir %s/%s", datapath, datestr)
+system(strtmp)
+
+/* 
+
+***Note on the CaShell mechanism***
+
+This mechanism implements the Ca dynamics of the Traub model according to
+
+d xi_i / dt = -phi_i I_Ca,i - beta_xi xi_i
+
+where xi_i is the calcium concentration variable (dimensionless), 
+phi_i is a compartment-dependent conversion factor for the Ca current to 
+calcium concentration change, and beta_xi is a time constant of calcium 
+clearance. 
+
+In the Traub model, the current is in units of nA, time is in units of ms. 
+So the units of phi_i are 1/(ms nA). In NEURON, time is in units of ms, 
+but current is in units of mA/cm^2. So we need to convert the current to
+units of nA. For this we compute the surface area of the compartment,
+S_A_um2 = pi * diam * L, in units of um^2. Since 1 um = 10^-4 cm, we multiply
+by 10^-8 to obtain S_A_cm2 in units of cm^2. If we multiply I_Ca,i (NEURON) by 
+S_A_cm2, we obtain the current in units of mA. To convert to nA, we need to 
+multiply by 1 mA = 10^6 nA. Hence,
+
+phi_i (Traub) * I_Ca,i (Traub) = phi_i (Traub) * I_Ca,i (NEURON) * S_A_cm2 * 10^6 (mA to nA) 
+
+Therefore the ph_i constant in NEURON is given by 
+
+phi_i (NEURON) = phi_i (Traub) * S_A_cm2 * 10^6 = phi_i (Traub) * S_A_um2 * 10^-8 * 10^6
+phi_i (NEURON) = phi_i (Traub) * S_A_um2 * 10^-2
+
+Traub et al. (1991) phi_i values:
+
+phi_9 = 17,402 (our soma, use 17.402)
+phi_1 to phi_7 = 7,769 (our basal[7] to basal[1], use 7.769)
+phi_8 = 34,530 (our basal[0], use 34.530)
+phi_10 = 26,404 (our apical[0], use 26.404)
+phi_11 to phi_19 = 5,941 (our apical[1] to apical[9], use 5.941)
+
+Note: as explained in Traub et al. (1994), these values are wrong by a factor 
+1,000 and should be replaced by the ones in parentheses.
+
+Since there are no gCa in basal[7] and in apical[9], there is 
+no need to insert CaShell there. We compute the NEURON values 
+immediately below.
+*/
+diam_soma = 4.23 * 2  // from Methods of Traub 1991, radius = 4.23 um 
+L_soma = 125  // um
+
+phi_soma_traub_corrected = 17.402
+phi_soma = phi_soma_traub_corrected * PI * diam_soma * L_soma * 1e-2
+
+diam_basal = 2.42 * 2  // according to Traub 1991 radius = 2.42 um
+L_basal = 110.0  // um
+
+phi_basal_1_6_traub_corrected = 7.769 
+phi_basal_1_6 = phi_basal_1_6_traub_corrected * PI * diam_basal * L_basal * 1e-2
+
+phi_basal_0_traub_corrected = 34.530 
+phi_basal_0 = phi_basal_0_traub_corrected * PI * diam_basal * L_basal * 1e-2
+
+diam_apical = 2.89 * 2  // according to Traub 1991 radius = 2.89 um
+L_apical = 120.0  // um
+
+phi_apical_0_traub_corrected = 26.404
+phi_apical_0 = phi_apical_0_traub_corrected * PI * diam_apical * L_apical * 1e-2
+
+phi_apical_1_8_traub_corrected = 5.941
+phi_apical_1_8 = phi_apical_1_8_traub_corrected * PI * diam_apical * L_apical * 1e-2
+
+// Reversal potentials for the different ions
+ek_rev = -15
+ena_rev = 115
+eca_rev = 140
+
+// Now create model compartments 
+create soma
+
+create basal[8]
+create apical[10]
+
+//setup topology
+connect apical[0](0), soma(1) //child, parent
+connect basal[0](0), soma(0)
+
+//connect basal dendrites in chain order to soma
+for i = 1, 7 {
+    connect basal[i](0), basal[i-1](1) // child, parent
+}
+
+// As above, results in apical[9](0) -> apical[8](1) - apical[8](0) -> ... apical[1](0) -> apical[0](1)
+// where we use the notation " child -> parent" to denote child compartment connected to 
+// parent compartment
+for i = 1, 9 {
+    connect apical[i](0), apical[i-1](1) // child, parent
+}
+
+Cm_t = 3  // uF/cm^2
+Ra_t = 100  // Ohm cm
+gm_t = 1/10000  // S/cm^2
+ep_t = 0  // mV
+
+// Setup all conductances in soma
+soma { //
+    nseg = 1
+    diam = diam_soma
+    L = L_soma
+    Ra=Ra_t
+    cm=Cm_t
+    
+    insert pas
+    e_pas= ep_t
+    g_pas = gm_t // in units of S/cm^2
+    
+    insert gNa
+    gmax_gNa = 0.03
+    
+    insert gKdr
+    gmax_gKdr = 0.015
+    
+    insert gKa
+    gmax_gKa = 0.005
+    
+    insert gCa
+    gmax_gCa = 0.004
+        
+    insert CaShell
+    phi_CaShell = phi_soma 
+    
+    insert gKahp
+    gmax_gKahp = 0.0008 
+    
+    insert gKc
+    gmax_gKc = 0.010
+    
+    //compartment ions: Na, K, Ca 
+    ena = ena_rev
+    ek = ek_rev
+    eca = eca_rev
+
+    // this following allows cai/cao to be state variables and eca to be a parameter
+    // needs to be at end of insertion process not to be overridden by other
+    // Ca related mechanism insertions
+    ion_style("ca_ion",3,1,0,0,0)   
+}
+
+// Setup basic passive parameters in basal and apical compartments
+for i = 0, 7 {
+    basal[i] { //    
+	Ra=Ra_t
+	cm=Cm_t
+	insert pas
+	e_pas= ep_t
+	g_pas = gm_t
+	nseg = 1
+	diam = diam_basal 
+	L = L_basal 
+    }
+}
+
+for i = 0, 9 {
+    apical[i] { //
+        Ra=Ra_t
+	cm=Cm_t
+	insert pas
+	e_pas= ep_t
+	g_pas = gm_t
+	nseg = 1
+	diam = diam_apical
+	L = L_apical
+    }
+}
+
+// Setup active conductances in basal and apical compartments
+
+//setup a vector containing the conductances for each basal compartement
+objref gCa_basal
+gCa_basal = new Vector(7, 0.0) // the last compartment has no gCa
+gCa_basal.x[0] = 0.008 // S/cm^2
+gCa_basal.x[1] = 0.005
+gCa_basal.fill(0.012, 2, 4) // values at index 2, 3 and 4
+gCa_basal.fill(0.005, 5, 6) // values at index 5 and 6
+
+objref gKahp_basal
+gKahp_basal = new Vector(7, 0.0008) // the last compartment has no gKahp
+
+objref gKc_basal
+gKc_basal = new Vector(7, 0.0) // the last compartment has no gKc
+gKc_basal.x[0] = 0.020 // S/cm^2
+gKc_basal.x[1] = 0.005
+gKc_basal.fill(0.010, 2, 4) // values at index 2, 3 and 4
+gKc_basal.fill(0.005, 5, 6) // values at index 5 and 6
+
+for i = 0, 6 {
+    basal[i] {
+	insert gCa
+	gmax_gCa = gCa_basal.x[i]
+	
+	insert CaShell
+	if ( i == 0 ) {
+	    phi_CaShell = phi_basal_0
+	} else {
+	    phi_CaShell = phi_basal_1_6 
+	}
+	
+	insert gKahp
+	gmax_gKahp = gKahp_basal.x[i]
+	
+	insert gKc
+	gmax_gKc = gKc_basal.x[i]
+	
+	// Compartment ions: Ca, K
+	ek = ek_rev
+	eca = eca_rev
+	
+	ion_style("ca_ion",3,1,0,0,0)
+    }    
+}
+
+// add the gNa and gKdr conductances in the subset of basal compartments specified by Traub 1991
+basal[0] {
+    insert gNa
+    gmax_gNa = 0.015
+    
+    insert gKdr
+    gmax_gKdr = 0.005
+    
+    // Compartment ions: Na, K
+    ek = ek_rev
+    ena = ena_rev
+}
+
+basal[2] {
+    insert gNa
+    gmax_gNa = 0.020
+    
+    insert gKdr
+    gmax_gKdr = 0.020
+    
+    // Compartment ions: Na, K
+    ek = ek_rev
+    ena = ena_rev
+}
+
+// setup a vector containing the conductances for each apical compartment
+objref gCa_apical
+gCa_apical = new Vector(9, 0.0) // the last compartment has no gCa
+gCa_apical.x[0] = 0.008 // S/cm^2
+gCa_apical.x[1] = 0.005
+gCa_apical.fill(0.017, 2, 4) // values at index 2, 3 and 4
+gCa_apical.fill(0.010, 5, 6) // values at index 5 and 6
+gCa_apical.fill(0.005, 7, 8) // values at index 7 and 8
+
+objref gKahp_apical
+gKahp_apical = new Vector(9, 0.0008) // the last compartment has no gKahp
+
+objref gKc_apical
+gKc_apical = new Vector(9, 0.0) // the last compartment has no gKc
+gKc_apical.x[0] = 0.020 // S/cm^2
+gKc_apical.x[1] = 0.005
+gKc_apical.fill(0.015, 2, 6) // values at index 2 to 6
+gKc_apical.fill(0.005, 7, 8) // values at index 7 and 8
+
+for i = 0, 8 {
+    apical[i] {
+	insert gCa
+	gmax_gCa = gCa_apical.x[i]
+	
+	insert CaShell
+	if ( i == 0 ) {
+	    phi_CaShell = phi_apical_0
+	} else {
+	    phi_CaShell = phi_apical_1_8
+	}
+	
+	insert gKahp
+	gmax_gKahp = gKahp_apical.x[i]
+	
+	insert gKc
+	gmax_gKc = gKc_apical.x[i]
+	
+	// Compartment ions: Ca, K
+	ek = ek_rev
+	eca = eca_rev
+
+	ion_style("ca_ion",3,1,0,0,0)
+    }    
+}
+
+// add the gNa and gKdr conductances in the subset of apical compartments specified by Traub 1991
+apical[0] {
+    insert gNa
+    gmax_gNa = 0.015
+    
+    insert gKdr
+    gmax_gKdr = 0.005
+    
+    // Compartment ions: Na, K
+    ek = ek_rev
+    ena = ena_rev
+
+}
+
+apical[2] {
+    insert gNa
+    gmax_gNa = 0.020
+    
+    insert gKdr
+    gmax_gKdr = 0.020
+    
+    // Compartment ions: Na, K
+    ek = ek_rev
+    ena = ena_rev
+    
+}
+
+//Note: the value of dt has to be changed before calling nrngui.hoc
+dt = 0.025 //standard integration step value
+dt = 0.05  //see if we can get away with less points
+
+//standard gui, needed to run sims
+load_file("nrngui.hoc")
+
+v_init = 0
+tstop = 100
+
+//load_file("stepsim.hoc")
+//load_file("2compstim.hoc")

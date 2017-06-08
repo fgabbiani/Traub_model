@@ -1,0 +1,28 @@
+//check if the steady-state values of gKa are initialized correctly
+
+create soma
+access soma
+
+insert gKa
+
+// the tables for the rate constants are from -150 to 50 in 2000 steps or dv = 0.1
+vmin = -20
+vmax = 130
+dv = 0.1
+
+//open a file to save the data
+wopen("steady_state/gKa_ss.txt")
+
+vcurrent = vmin
+for ( ; vcurrent<=vmax; ) {
+    //initialize to current v
+    finitialize(vcurrent)
+
+    //print the gNa conductance variables to file
+    fprint("%g %g %g %g %g\n",vcurrent, a_inf_gKa, tau_a_gKa, b_inf_gKa, tau_b_gKa)
+
+    vcurrent = vcurrent + dv
+}
+
+//close the file
+wopen()

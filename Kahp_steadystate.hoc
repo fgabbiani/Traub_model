@@ -1,0 +1,28 @@
+//check if the steady-state values of gKahp are initialized correctly
+
+create soma
+access soma
+
+insert gKahp
+
+// the tables for the rate constants are from 0 to 500 in 2000 steps or dc = 0.275
+cmin = 0
+cmax = 550
+dc = 0.5
+
+//open a file to save the data
+wopen("steady_state/gKahp_ss.txt")
+
+ccurrent = cmin
+for ( ; ccurrent<=cmax; ) {
+    //initialize to current c
+    rates_gKahp(ccurrent)
+
+    //print the gKc conductance variables to file
+    fprint("%g %g %g \n",ccurrent, q_inf_gKahp, tau_q_gKahp)
+
+    ccurrent = ccurrent + dc
+}
+
+//close the file
+wopen()

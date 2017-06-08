@@ -1,0 +1,35 @@
+//check if the steady-state values of gKc are initialized correctly for different calcium 
+//concentrations
+
+create soma
+access soma
+
+insert gKc
+
+//set gmax to 1 for simplicity
+gmax_gKc = 1
+
+//initialize at a membrane potential where the activation variable, c = 1
+v_init = 60
+
+// calcium concentration values from 0 to 300
+cmin = 0
+cmax = 300
+dc = 0.5
+
+//open a file to save the data
+wopen("steady_state/gKc_conductance.txt")
+
+ccurrent = cmin
+for ( ccurrent = cmin; ccurrent<=cmax; ccurrent = ccurrent + dc ) {
+    //initialize to current c
+    cai = ccurrent
+    finitialize(v_init)
+
+    //print the gKc conductance variables to file
+    fprint("%g %g \n",ccurrent, g_gKc)
+
+}
+
+//close the file
+wopen()
