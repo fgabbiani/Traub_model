@@ -351,7 +351,12 @@ apical[2] {
 
 //Note: the value of dt has to be changed before calling nrngui.hoc
 //dt = 0.025 //standard integration step value
-dt = 0.05  //see if we can get away with less points
+
+//Alternative: see if we can get away with less points
+dt = 0.05  
+// needed for dt = 0.05 since setdt() will otherwise change dt back to 0.025 
+// see Neuron book, sect. 8.3
+steps_per_ms = 20 
 
 //standard gui, needed to run sims
 load_file("nrngui.hoc")
@@ -391,8 +396,6 @@ savdata = new File()
 //current is 0.4 or 0d4 and dt is 0.025 or 0d025
 //savdata.wopen("data/soma_currinj_i_0d4_dt_0d025.dat")
 savdata.wopen("data/soma_currinj_i_0d4_dt_0d05.dat")
-
-//savdata.printf("t SThcells[2].soma.v(0.5)\n")
 
 objref tempmatrix
 tempmatrix = new Matrix()
