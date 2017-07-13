@@ -1,4 +1,4 @@
-function [ pr_current ] = convert_current( traub_current )
+function [ traub_current_nA ] = convert_current( pr_current )
 %convert_current: from Traub to Pinsky-Rinzel model
 %   pr_current = convert_current( traub_current )
 %
@@ -28,12 +28,9 @@ total_area_cm2 = total_area_um2 * um2cm * um2cm;
 %conversion factor from nA to uA
 nA2uA = 1e-3; % 1 nA = 10^-9 A = 10^-3 uA (1 uA = 10^-3 A)
 
-%convert to uA
-traub_current_uA = traub_current * nA2uA;
-
 %scale per unit area and assign fraction attributed to soma as in legend of
 %fig. 6 of Pinsky-Rinzel paper
-pr_current = traub_current_uA/(p*total_area_cm2);
-
+%pr_current = traub_current_uA/(p*total_area_cm2);
+traub_current_nA = pr_current*(p*total_area_cm2)/(nA2uA);
 end
 

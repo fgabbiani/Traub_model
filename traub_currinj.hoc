@@ -370,7 +370,7 @@ objref Istim
 Istim = new IClamp(0.5) //location of electrode in current section
 Istim.del = 0
 Istim.dur = tstop-tstart
-Istim.amp = 0.4 //nA
+Istim.amp = 0.4244 //nA
 
 //define the vectors used to record t and soma membrane potential
 objref t_rec
@@ -395,7 +395,7 @@ objref savdata
 savdata = new File()
 //current is 0.4 or 0d4 and dt is 0.025 or 0d025
 //savdata.wopen("data/soma_currinj_i_0d4_dt_0d025.dat")
-savdata.wopen("data/soma_currinj_i_0d4_dt_0d05.dat")
+savdata.wopen("data/soma_currinj_0.4244.dat")
 
 objref tempmatrix
 tempmatrix = new Matrix()
